@@ -78,20 +78,65 @@ speculative decoding context initialized
 Observed results so far:
 
 - `ctx=65536`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`: MTP registered and generated successfully.
-- `ctx=262144`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`: main model loaded, but MTP context failed due VRAM pressure.
+- `ctx=196608`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`, `--spec-draft-n-max 3`: main model and MTP draft head both loaded successfully.
+- `ctx=262144`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`: main model loaded, but MTP context failed due VRAM pressure in the observed run.
 
-Recommended next targets for real MTP + TurboQuant use on this hardware:
+The confirmed `196608` context run used:
 
 ```text
-ctx=131072
-ctx=160000
-ctx=196608
+main KV total: 4464 MiB
+main K (q8_0): 3264 MiB
+main V (turbo3): 1200 MiB
+
+MTP KV total: 279 MiB
+MTP K (q8_0): 204 MiB
+MTP V (turbo3): 75 MiB
+```
+
+During MTP initialization at `ctx=196608`, an initial CUDA1 compute-buffer
+allocation failed, then llama.cpp retried without pipeline parallelism for the
+MTP context and successfully registered the draft head:
+
+```text
+compute buffer allocation failed, retrying without pipeline parallelism
+set_mtp: MTP draft head registered
+speculative decoding context initialized
+```
+
+Recommended local profiles for this hardware:
+
+```text
+daily MTP profile: ctx=65536 or ctx=131072
+confirmed long-context MTP profile: ctx=196608
+maximum-context main-model profile: ctx=262144
 ```
 
 For maximum-context experiments where MTP is allowed to fail or is disabled,
 `ctx=262144` with `K=q8_0`, `V=turbo3` is useful as a long-context profile, but
 it should not be treated as confirmed MTP-active unless the MTP registration log
 lines appear.
+
+An experimental way to try `ctx=262144` while reducing the MTP overhead is to
+keep the main context at full length and limit the draft/MTP context:
+
+```bat
+llama-server.exe ^
+  -m path\to\Qwen3.6-27B-MTP-UD-Q5_K_XL.gguf ^
+  --ctx-size 262144 ^
+  --batch-size 512 ^
+  --ubatch-size 128 ^
+  --cache-type-k q8_0 ^
+  --cache-type-v turbo3 ^
+  --spec-type mtp ^
+  --spec-draft-n-max 3 ^
+  --spec-draft-ctx-size 65536 ^
+  --cache-type-k-draft q8_0 ^
+  --cache-type-v-draft turbo3
+```
+
+This `262144` main / `65536` draft-context setup is a workaround candidate, not
+a confirmed result yet. It should only be considered successful if the log shows
+the MTP registration lines.
 
 ## Scope And Caveats
 

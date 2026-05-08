@@ -16,7 +16,15 @@ Tested by `CostanzoPadovano` on:
 - Windows
 - CUDA 13.2
 - 2x NVIDIA GeForce RTX 5060 Ti 16 GB
-- `Qwen3.6-27B-MTP-UD-Q5_K_XL.gguf`
+
+Exact model tested:
+
+- Hugging Face repository:
+  [`havenoammo/Qwen3.6-27B-MTP-UD-GGUF`](https://huggingface.co/havenoammo/Qwen3.6-27B-MTP-UD-GGUF)
+- GGUF file:
+  `Qwen3.6-27B-MTP-UD-Q5_K_XL.gguf`
+- Local test path:
+  `C:\Users\costa\.lmstudio\models\havenoammo\Qwen3.6-27B-MTP-UD-GGUF\Qwen3.6-27B-MTP-UD-Q5_K_XL.gguf`
 
 Smoke-tested command shape:
 

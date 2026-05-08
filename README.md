@@ -1,4 +1,10 @@
-# Experimental MTP + TurboQuant CUDA Branch
+# Experimental Windows/CUDA Blackwell Result: Qwen3.6 27B MTP + TurboQuant
+
+This README documents a local experimental result for running Qwen3.6 27B MTP
+GGUF with llama.cpp MTP/speculative decoding and TurboQuant KV-cache support.
+The result is promising, but it is not an upstream-ready compatibility claim.
+
+## What This Branch Is
 
 This branch is an experimental merge of:
 
@@ -7,17 +13,20 @@ This branch is an experimental merge of:
 - TurboQuant KV-cache support from `TheTom/llama-cpp-turboquant`
 
 It was created as a local test branch for Qwen3.6 27B MTP GGUF inference on
-Windows/CUDA Blackwell hardware.
+Windows/CUDA Blackwell hardware, with OpenCode using `llama-server` as a local
+OpenAI-compatible backend.
 
-## Local Test Status
+## Tested Hardware
 
 Tested by `CostanzoPadovano` on:
 
 - Windows
 - CUDA 13.2
-- 2x NVIDIA GeForce RTX 5060 Ti 16 GB
+- 2 x NVIDIA GeForce RTX 5060 Ti 16 GB
+- Blackwell, compute capability 12.0
+- Total VRAM: approximately 32 GB
 
-Exact model tested:
+## Tested Model
 
 - Hugging Face repository:
   [`havenoammo/Qwen3.6-27B-MTP-UD-GGUF`](https://huggingface.co/havenoammo/Qwen3.6-27B-MTP-UD-GGUF)
@@ -26,120 +35,111 @@ Exact model tested:
 - Local test path:
   `C:\Users\costa\.lmstudio\models\havenoammo\Qwen3.6-27B-MTP-UD-GGUF\Qwen3.6-27B-MTP-UD-Q5_K_XL.gguf`
 
-Smoke-tested command shape:
+## Working OpenCode Profile
+
+The main successful OpenCode profile used:
+
+```text
+ctx = 160000
+batch = 1024
+ubatch = 128
+gpu_layers = 999
+K cache = q8_0
+V cache = turbo3
+tensor split = 1,1
+cache_ram = 0
+MTP = --spec-type mtp --spec-draft-n-max 2
+reasoning budget = --reasoning-budget 512
+endpoint = http://127.0.0.1:8038
+OpenCode profile = opencode.27b-qwen36-mtp-turboquant.json
+```
+
+## Working Command
 
 ```bat
 llama-server.exe ^
-  -m path\to\Qwen3.6-27B-MTP-UD-Q5_K_XL.gguf ^
-  --spec-type mtp ^
-  --spec-draft-n-max 3 ^
+  -m C:\Users\costa\.lmstudio\models\havenoammo\Qwen3.6-27B-MTP-UD-GGUF\Qwen3.6-27B-MTP-UD-Q5_K_XL.gguf ^
+  --ctx-size 160000 ^
+  --batch-size 1024 ^
+  --ubatch-size 128 ^
+  --n-gpu-layers 999 ^
   --cache-type-k q8_0 ^
   --cache-type-v turbo3 ^
-  --n-gpu-layers 999 ^
+  --tensor-split 1,1 ^
+  --cache-ram 0 ^
+  --spec-type mtp ^
+  --spec-draft-n-max 2 ^
+  --reasoning-budget 512 ^
+  --host 0.0.0.0 ^
+  --port 8038 ^
   --flash-attn on
 ```
 
-The local smoke test successfully registered MTP and generated output with
-TurboQuant KV cache enabled. On this Qwen3.6 27B GQA layout, TurboQuant's
-auto-asymmetric policy upgraded K from `turbo3` to `q8_0` for quality while
-keeping V as `turbo3`, so the recommended starting point is:
+## How To Verify MTP Is Actually Active
 
-```text
---cache-type-k q8_0 --cache-type-v turbo3
-```
-
-## Context Length Notes
-
-The 2x16 GB RTX 5060 Ti test system can load the main Qwen3.6 27B Q5_K_XL model
-at the native `262144` token context when using TurboQuant for the V cache:
-
-```text
-n_ctx = 262144
-K (q8_0): 4352 MiB
-V (turbo3): 1600 MiB
-KV total: 5952 MiB
-```
-
-However, in the observed `262144` context run, the main model loaded but the MTP
-draft context did not fit in remaining VRAM:
-
-```text
-failed to create MTP context
-```
-
-That means the server can still start, but MTP/speculative decoding is not
-active unless the log also contains:
+Passing MTP flags is not enough. In the successful runs, the log contained:
 
 ```text
 set_mtp: MTP draft head registered
 speculative decoding context initialized
 ```
 
-Observed results so far:
+These lines confirm that the draft/MTP head was actually loaded and registered.
+If the server starts without these lines, the main model may be running, but MTP
+should not be considered active.
 
-- `ctx=65536`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`: MTP registered and generated successfully.
-- `ctx=160000`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`, `--spec-draft-n-max 2`, `batch=512`, `ubatch=128`, `--cache-ram 0`: MTP registered and generated successfully up to `135029` real prompt tokens in synthetic stress tests.
-- `ctx=160000`, same reduced settings as above, with an approximately `150k` token synthetic prompt: failed during prompt processing at `139264` processed tokens with `CUDA error: device not ready`.
-- `ctx=160000`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`, `--spec-draft-n-max 3`, `batch=1024`, `ubatch=256`, `--cache-ram 0`: MTP registered and generated successfully, but later hit CUDA out-of-memory on a long `~38k` token prompt.
-- `ctx=180224`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`, `--spec-draft-n-max 3`, `batch=1024`, `ubatch=256`, `--cache-ram 0`: MTP registered, but a runtime CUDA resource allocation failed during the first prompt eval.
-- `ctx=196608`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`, `--spec-draft-n-max 3`: main model and MTP draft head both loaded successfully, but this profile is too close to the VRAM limit for long OpenCode sessions.
-- `ctx=262144`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`: main model loaded, but MTP context failed due VRAM pressure in the observed run.
+## Observed Memory Use
 
-The confirmed `196608` context run used:
+The main model was offloaded across both GPUs:
 
 ```text
-main KV total: 4464 MiB
-main K (q8_0): 3264 MiB
-main V (turbo3): 1200 MiB
-
-MTP KV total: 279 MiB
-MTP K (q8_0): 204 MiB
-MTP V (turbo3): 75 MiB
+CUDA0 model buffer: ~8793 MiB
+CUDA1 model buffer: ~9902 MiB
+CPU model buffer:   ~833 MiB
 ```
 
-During MTP initialization at `ctx=196608`, an initial CUDA1 compute-buffer
-allocation failed, then llama.cpp retried without pipeline parallelism for the
-MTP context and successfully registered the draft head:
+At `ctx=160000`, the observed main KV-cache was:
 
 ```text
-compute buffer allocation failed, retrying without pipeline parallelism
-set_mtp: MTP draft head registered
-speculative decoding context initialized
+main KV total: ~3632.81 MiB
+main K q8_0:  ~2656.25 MiB
+main V turbo3: ~976.56 MiB
 ```
 
-In a longer OpenCode session at `ctx=196608`, MTP remained active and generated
-successfully, with observed draft acceptance rates between roughly `0.60` and
-`0.91`. The run later hit CUDA out-of-memory while creating prompt-cache context
-checkpoints after the live prompt grew to about `41k` tokens:
+The observed MTP KV-cache was:
 
 ```text
-created context checkpoint 16
-CUDA error: out of memory
+MTP KV total: ~227.05 MiB
+MTP K q8_0:  ~166.02 MiB
+MTP V turbo3: ~61.04 MiB
 ```
 
-Each checkpoint in that run was about `149.626 MiB`, so the prompt cache added
-roughly `2.4 GiB` by checkpoint 16. For this high-context MTP profile, disabling
-the prompt cache is recommended:
+TurboQuant is especially important for this setup because the V cache remains
+much smaller than an all-`q8_0` KV configuration while keeping K at `q8_0`.
 
-```text
---cache-ram 0
-```
+## Observed OpenCode Performance
 
-Even with `--cache-ram 0`, llama.cpp can still create internal context
-checkpoints during prompt processing. In the `ctx=160000`, `batch=1024`,
-`ubatch=256`, `--spec-draft-n-max 3` test, MTP remained active with draft
-acceptance around `0.82` to `0.87` and decode around `40 tok/s`, but the run
-hit CUDA out-of-memory while processing a `~38k` token prompt:
+During a real OpenCode session over a large bioinformatics project, the backend
+remained usable with long live context and MTP active. Observed performance:
 
-```text
-task.n_tokens = 37769
-prompt processing progress, n_tokens = 34816
-CUDA error: out of memory
-```
+| Prompt size | Prompt eval | Decode | Draft acceptance |
+| --- | ---: | ---: | ---: |
+| 555 tokens | ~400 tok/s | ~38 tok/s | ~0.80 |
+| 17k tokens | ~619 tok/s | ~38 tok/s | ~0.968 |
+| ~35k tokens | ~538 tok/s | ~33.6 tok/s | ~0.964 |
+| ~38k tokens | ~484 tok/s | ~33.4 tok/s | ~0.976 |
+| ~75k tokens | ~412 tok/s | ~25 tok/s | ~0.868 |
+| ~91k tokens | ~374 tok/s | ~22.8 tok/s | ~0.83 |
+| ~101k tokens | ~342 tok/s | ~24.3 tok/s | ~0.993 |
+| ~106k tokens | not recorded | ~20-22 tok/s | MTP still active |
 
-Reducing the profile to `batch=512`, `ubatch=128`, and `--spec-draft-n-max 2`
-made the `ctx=160000` setup much more stable. Synthetic prompt stress tests
-passed at:
+The OpenCode session reached more than `110k` live context tokens while still
+using the MTP-enabled local backend.
+
+## Additional Synthetic Context Stress Test
+
+A reduced stress-test profile using `ctx=160000`, `batch=512`, `ubatch=128`,
+`--spec-draft-n-max 2`, and `--cache-ram 0` successfully generated at:
 
 ```text
 48029 prompt tokens
@@ -148,7 +148,7 @@ passed at:
 135029 prompt tokens
 ```
 
-The same reduced profile failed near the top end of the 160k window:
+The same reduced profile failed near the top of the 160k context window:
 
 ```text
 task.n_tokens = 150029
@@ -156,49 +156,87 @@ prompt processing progress, n_tokens = 139264
 CUDA error: device not ready
 ```
 
-Recommended local profiles for this hardware:
+This suggests that the practical upper prompt limit for this hardware/profile is
+around `135k` tokens, even though the nominal context is `160000`.
+
+## Real-world OpenCode Task Results
+
+OpenCode was used on top of this backend to inspect a large real bioinformatics
+project. The model performed many consecutive tool calls while maintaining long
+context. Successful tasks included:
+
+1. Full inspection of the `Bioinformatics_Agent` repository.
+2. Counting Excel files.
+3. Searching inside a deep Excel workbook.
+4. Reading the `Methods` sheet in the same workbook.
+5. Inspecting project folders.
+6. Reading and counting BED files.
+7. Summarizing a PSEA project.
+8. Searching for the `test_split_media_item` function.
+9. Counting occurrences of a gene.
+10. Correctly recalling details discussed many turns earlier.
+
+Overall, the model showed strong file-based accuracy, useful tool-calling
+behavior, and good long-context recall in this local OpenCode setup.
+
+## Known Limitations
+
+This remains an experimental local result.
+
+- It has not been validated on macOS, Metal, Vulkan, ROCm, Linux, or non-Blackwell CUDA hardware.
+- `ctx=262144` can load the main model with `K=q8_0`, `V=turbo3`, but previous tests did not consistently fit the MTP/draft context into 2 x 16 GB VRAM.
+- A server process can start successfully even when MTP fails to initialize. Always check for the MTP registration log lines.
+- Long-context runs still create internal context checkpoints during prompt processing.
+- The model is not completely immune to loops or repetition. In one real OpenCode request asking for methods, the model entered a long useless thinking/string loop and had to be interrupted. After retrying, it completed the task correctly by reading the `Methods` sheet.
+- `batch=1024`, `ubatch=256`, and `--spec-draft-n-max 3` were fast but too fragile for long OpenCode sessions on this hardware.
+- `ctx=160000`, `batch=1024`, `ubatch=128`, and `--spec-draft-n-max 2` is an aggressive profile, not a guarantee of full stability.
+
+## Recommended Profiles
+
+Daily MTP profile:
 
 ```text
-daily MTP profile: ctx=65536 or ctx=131072
-safe long-context MTP candidate: ctx=131072, batch=512, ubatch=128, draft_n=2, --cache-ram 0
-aggressive long-context MTP profile: ctx=160000, batch=512, ubatch=128, draft_n=2, --cache-ram 0
-tested upper prompt limit for ctx=160000 profile: about 135k tokens stable, failure observed around 139k processed tokens
-maximum-context main-model profile: ctx=262144 without confirmed MTP
+ctx = 65536 or 131072
+K = q8_0
+V = turbo3
+draft_n = 2
+cache_ram = 0
 ```
 
-For maximum-context experiments where MTP is allowed to fail or is disabled,
-`ctx=262144` with `K=q8_0`, `V=turbo3` is useful as a long-context profile, but
-it should not be treated as confirmed MTP-active unless the MTP registration log
-lines appear.
+Aggressive long-context OpenCode profile:
 
-An experimental way to try `ctx=262144` while reducing the MTP overhead is to
-keep the main context at full length and limit the draft/MTP context:
-
-```bat
-llama-server.exe ^
-  -m path\to\Qwen3.6-27B-MTP-UD-Q5_K_XL.gguf ^
-  --ctx-size 262144 ^
-  --batch-size 512 ^
-  --ubatch-size 128 ^
-  --cache-ram 0 ^
-  --cache-type-k q8_0 ^
-  --cache-type-v turbo3 ^
-  --spec-type mtp ^
-  --spec-draft-n-max 3 ^
-  --spec-draft-ctx-size 65536 ^
-  --cache-type-k-draft q8_0 ^
-  --cache-type-v-draft turbo3
+```text
+ctx = 160000
+batch = 1024
+ubatch = 128
+K = q8_0
+V = turbo3
+draft_n = 2
+cache_ram = 0
 ```
 
-This `262144` main / `65536` draft-context setup is a workaround candidate, not
-a confirmed result yet. It should only be considered successful if the log shows
-the MTP registration lines.
+Maximum-context main-model profile:
+
+```text
+ctx = 262144
+K = q8_0
+V = turbo3
+```
+
+The `ctx=262144` profile is useful for main-model long-context experiments, but
+it should not be documented as confirmed MTP-active on 2 x 16 GB unless the log
+contains:
+
+```text
+set_mtp: MTP draft head registered
+speculative decoding context initialized
+```
 
 ## Scope And Caveats
 
-This is not an upstream-ready compatibility claim. It has not been validated on
-macOS, Metal, Vulkan, ROCm, Linux, or non-Blackwell CUDA hardware. Treat it as a
-reproducible experiment for the tested Windows/CUDA Blackwell setup.
+This result was manually tested by `CostanzoPadovano` on local Windows/CUDA
+Blackwell hardware. The README documents observed behavior, not a general
+compatibility guarantee.
 
 ## Development Note
 

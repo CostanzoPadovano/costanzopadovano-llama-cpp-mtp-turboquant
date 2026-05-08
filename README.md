@@ -1,3 +1,59 @@
+# Experimental MTP + TurboQuant CUDA Branch
+
+This branch is an experimental merge of:
+
+- upstream `ggml-org/llama.cpp`
+- MTP/speculative decoding support from `ggml-org/llama.cpp` PR `#22673`
+- TurboQuant KV-cache support from `TheTom/llama-cpp-turboquant`
+
+It was created as a local test branch for Qwen3.6 27B MTP GGUF inference on
+Windows/CUDA Blackwell hardware.
+
+## Local Test Status
+
+Tested by `CostanzoPadovano` on:
+
+- Windows
+- CUDA 13.2
+- 2x NVIDIA GeForce RTX 5060 Ti 16 GB
+- `Qwen3.6-27B-MTP-UD-Q5_K_XL.gguf`
+
+Smoke-tested command shape:
+
+```bat
+llama-server.exe ^
+  -m path\to\Qwen3.6-27B-MTP-UD-Q5_K_XL.gguf ^
+  --spec-type mtp ^
+  --spec-draft-n-max 3 ^
+  --cache-type-k q8_0 ^
+  --cache-type-v turbo3 ^
+  --n-gpu-layers 999 ^
+  --flash-attn on
+```
+
+The local smoke test successfully registered MTP and generated output with
+TurboQuant KV cache enabled. On this Qwen3.6 27B GQA layout, TurboQuant's
+auto-asymmetric policy upgraded K from `turbo3` to `q8_0` for quality while
+keeping V as `turbo3`, so the recommended starting point is:
+
+```text
+--cache-type-k q8_0 --cache-type-v turbo3
+```
+
+## Scope And Caveats
+
+This is not an upstream-ready compatibility claim. It has not been validated on
+macOS, Metal, Vulkan, ROCm, Linux, or non-Blackwell CUDA hardware. Treat it as a
+reproducible experiment for the tested Windows/CUDA Blackwell setup.
+
+## Development Note
+
+This experimental merge and local validation were performed with assistance from
+GPT-5.5 using Extra High reasoning mode. The build was tested manually by
+`CostanzoPadovano` on local CUDA Blackwell hardware.
+
+---
+
 # llama.cpp
 
 ![llama](https://user-images.githubusercontent.com/1991296/230134379-7181e485-c521-4d23-a0d6-f7b3b61ba524.png)

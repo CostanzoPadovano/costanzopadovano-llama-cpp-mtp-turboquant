@@ -78,7 +78,9 @@ speculative decoding context initialized
 Observed results so far:
 
 - `ctx=65536`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`: MTP registered and generated successfully.
-- `ctx=196608`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`, `--spec-draft-n-max 3`: main model and MTP draft head both loaded successfully.
+- `ctx=160000`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`, `--spec-draft-n-max 3`, `batch=1024`, `ubatch=256`, `--cache-ram 0`: MTP registered and generated successfully, but later hit CUDA out-of-memory on a long `~38k` token prompt.
+- `ctx=180224`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`, `--spec-draft-n-max 3`, `batch=1024`, `ubatch=256`, `--cache-ram 0`: MTP registered, but a runtime CUDA resource allocation failed during the first prompt eval.
+- `ctx=196608`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`, `--spec-draft-n-max 3`: main model and MTP draft head both loaded successfully, but this profile is too close to the VRAM limit for long OpenCode sessions.
 - `ctx=262144`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`: main model loaded, but MTP context failed due VRAM pressure in the observed run.
 
 The confirmed `196608` context run used:
@@ -121,12 +123,25 @@ the prompt cache is recommended:
 --cache-ram 0
 ```
 
+Even with `--cache-ram 0`, llama.cpp can still create internal context
+checkpoints during prompt processing. In the `ctx=160000`, `batch=1024`,
+`ubatch=256`, `--spec-draft-n-max 3` test, MTP remained active with draft
+acceptance around `0.82` to `0.87` and decode around `40 tok/s`, but the run
+hit CUDA out-of-memory while processing a `~38k` token prompt:
+
+```text
+task.n_tokens = 37769
+prompt processing progress, n_tokens = 34816
+CUDA error: out of memory
+```
+
 Recommended local profiles for this hardware:
 
 ```text
 daily MTP profile: ctx=65536 or ctx=131072
-confirmed long-context MTP profile: ctx=196608 with --cache-ram 0
-maximum-context main-model profile: ctx=262144
+safe long-context MTP candidate: ctx=131072, batch=512, ubatch=128, draft_n=2, --cache-ram 0
+aggressive long-context MTP candidate: ctx=160000, batch=512, ubatch=128, draft_n=2, --cache-ram 0
+maximum-context main-model profile: ctx=262144 without confirmed MTP
 ```
 
 For maximum-context experiments where MTP is allowed to fail or is disabled,

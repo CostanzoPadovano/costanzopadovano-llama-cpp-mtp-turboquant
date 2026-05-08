@@ -78,6 +78,8 @@ speculative decoding context initialized
 Observed results so far:
 
 - `ctx=65536`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`: MTP registered and generated successfully.
+- `ctx=160000`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`, `--spec-draft-n-max 2`, `batch=512`, `ubatch=128`, `--cache-ram 0`: MTP registered and generated successfully up to `135029` real prompt tokens in synthetic stress tests.
+- `ctx=160000`, same reduced settings as above, with an approximately `150k` token synthetic prompt: failed during prompt processing at `139264` processed tokens with `CUDA error: device not ready`.
 - `ctx=160000`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`, `--spec-draft-n-max 3`, `batch=1024`, `ubatch=256`, `--cache-ram 0`: MTP registered and generated successfully, but later hit CUDA out-of-memory on a long `~38k` token prompt.
 - `ctx=180224`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`, `--spec-draft-n-max 3`, `batch=1024`, `ubatch=256`, `--cache-ram 0`: MTP registered, but a runtime CUDA resource allocation failed during the first prompt eval.
 - `ctx=196608`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`, `--spec-draft-n-max 3`: main model and MTP draft head both loaded successfully, but this profile is too close to the VRAM limit for long OpenCode sessions.
@@ -135,12 +137,32 @@ prompt processing progress, n_tokens = 34816
 CUDA error: out of memory
 ```
 
+Reducing the profile to `batch=512`, `ubatch=128`, and `--spec-draft-n-max 2`
+made the `ctx=160000` setup much more stable. Synthetic prompt stress tests
+passed at:
+
+```text
+48029 prompt tokens
+96029 prompt tokens
+120029 prompt tokens
+135029 prompt tokens
+```
+
+The same reduced profile failed near the top end of the 160k window:
+
+```text
+task.n_tokens = 150029
+prompt processing progress, n_tokens = 139264
+CUDA error: device not ready
+```
+
 Recommended local profiles for this hardware:
 
 ```text
 daily MTP profile: ctx=65536 or ctx=131072
 safe long-context MTP candidate: ctx=131072, batch=512, ubatch=128, draft_n=2, --cache-ram 0
-aggressive long-context MTP candidate: ctx=160000, batch=512, ubatch=128, draft_n=2, --cache-ram 0
+aggressive long-context MTP profile: ctx=160000, batch=512, ubatch=128, draft_n=2, --cache-ram 0
+tested upper prompt limit for ctx=160000 profile: about 135k tokens stable, failure observed around 139k processed tokens
 maximum-context main-model profile: ctx=262144 without confirmed MTP
 ```
 

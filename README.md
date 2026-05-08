@@ -103,11 +103,29 @@ set_mtp: MTP draft head registered
 speculative decoding context initialized
 ```
 
+In a longer OpenCode session at `ctx=196608`, MTP remained active and generated
+successfully, with observed draft acceptance rates between roughly `0.60` and
+`0.91`. The run later hit CUDA out-of-memory while creating prompt-cache context
+checkpoints after the live prompt grew to about `41k` tokens:
+
+```text
+created context checkpoint 16
+CUDA error: out of memory
+```
+
+Each checkpoint in that run was about `149.626 MiB`, so the prompt cache added
+roughly `2.4 GiB` by checkpoint 16. For this high-context MTP profile, disabling
+the prompt cache is recommended:
+
+```text
+--cache-ram 0
+```
+
 Recommended local profiles for this hardware:
 
 ```text
 daily MTP profile: ctx=65536 or ctx=131072
-confirmed long-context MTP profile: ctx=196608
+confirmed long-context MTP profile: ctx=196608 with --cache-ram 0
 maximum-context main-model profile: ctx=262144
 ```
 
@@ -125,6 +143,7 @@ llama-server.exe ^
   --ctx-size 262144 ^
   --batch-size 512 ^
   --ubatch-size 128 ^
+  --cache-ram 0 ^
   --cache-type-k q8_0 ^
   --cache-type-v turbo3 ^
   --spec-type mtp ^

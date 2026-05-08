@@ -48,6 +48,51 @@ keeping V as `turbo3`, so the recommended starting point is:
 --cache-type-k q8_0 --cache-type-v turbo3
 ```
 
+## Context Length Notes
+
+The 2x16 GB RTX 5060 Ti test system can load the main Qwen3.6 27B Q5_K_XL model
+at the native `262144` token context when using TurboQuant for the V cache:
+
+```text
+n_ctx = 262144
+K (q8_0): 4352 MiB
+V (turbo3): 1600 MiB
+KV total: 5952 MiB
+```
+
+However, in the observed `262144` context run, the main model loaded but the MTP
+draft context did not fit in remaining VRAM:
+
+```text
+failed to create MTP context
+```
+
+That means the server can still start, but MTP/speculative decoding is not
+active unless the log also contains:
+
+```text
+set_mtp: MTP draft head registered
+speculative decoding context initialized
+```
+
+Observed results so far:
+
+- `ctx=65536`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`: MTP registered and generated successfully.
+- `ctx=262144`, `K=q8_0`, `V=turbo3`, `--spec-type mtp`: main model loaded, but MTP context failed due VRAM pressure.
+
+Recommended next targets for real MTP + TurboQuant use on this hardware:
+
+```text
+ctx=131072
+ctx=160000
+ctx=196608
+```
+
+For maximum-context experiments where MTP is allowed to fail or is disabled,
+`ctx=262144` with `K=q8_0`, `V=turbo3` is useful as a long-context profile, but
+it should not be treated as confirmed MTP-active unless the MTP registration log
+lines appear.
+
 ## Scope And Caveats
 
 This is not an upstream-ready compatibility claim. It has not been validated on

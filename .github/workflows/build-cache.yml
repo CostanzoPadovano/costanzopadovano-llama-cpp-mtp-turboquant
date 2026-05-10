@@ -1,9 +1,7 @@
 name: Build Actions Cache
 
 on:
-  workflow_dispatch: # allows manual triggering
-  schedule:
-    - cron: '0 * * * *'
+  workflow_dispatch: # manual only in this experimental fork
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref && github.ref || github.run_id }}
@@ -90,28 +88,3 @@ jobs:
           path: ./openvino_toolkit
           version_major: ${{ env.OPENVINO_VERSION_MAJOR }}
           version_full: ${{ env.OPENVINO_VERSION_FULL }}
-
-  windows-2022-rocm-cache:
-    runs-on: windows-2022
-
-    env:
-      # Make sure this is in sync with build.yml
-      HIPSDK_INSTALLER_VERSION: "26.Q1"
-
-    steps:
-      - name: Clone
-        id: checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Cache
-        uses: actions/cache@v5
-        id: cache-rocm
-        with:
-          path: C:\Program Files\AMD\ROCm
-          key: rocm-${{ env.HIPSDK_INSTALLER_VERSION }}-${{ runner.os }}
-
-      - name: Setup ROCm
-        if: steps.cache-rocm.outputs.cache-hit != 'true'
-        uses: ./.github/actions/windows-setup-rocm
-        with:
-          version: ${{ env.HIPSDK_INSTALLER_VERSION }}

@@ -310,6 +310,33 @@ These runs are the strongest evidence from this experiment: once OpenCode's
 prefix remained stable, the server avoided full re-prefill even near 200k live
 prompt tokens.
 
+After the `draft-mtp` alias and guarded MTP draft-read patch, an additional
+manual OpenCode check used:
+
+```text
+--spec-type draft-mtp
+--spec-draft-n-max 7
+--spec-draft-p-min 0.75
+```
+
+That follow-up run remained stable with the same 220k context profile. The
+server monitor observed:
+
+```text
+n_tokens_max = 209093
+prompt tokens total = 371133
+generation tokens total = 25171
+prompt throughput average ~= 573.7 tok/s
+generation throughput average ~= 57.4 tok/s
+requests_processing = 0
+requests_deferred = 0
+```
+
+This was a live post-patch check rather than part of the original
+`TEST_CHECK.txt` log, but it confirmed that the guarded `draft-mtp` path no
+longer hit the tensor read out-of-bounds crash seen during the first
+`draft-mtp` trial.
+
 ## Practical Recommendations
 
 Daily stable profile:

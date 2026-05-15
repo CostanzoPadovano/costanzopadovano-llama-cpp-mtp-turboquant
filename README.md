@@ -144,8 +144,9 @@ much smaller than an all-`q8_0` KV configuration while keeping K at `q8_0`.
 
 ## Observed OpenCode Performance
 
-During a real OpenCode session over a large bioinformatics project, the backend
-remained usable with long live context and MTP active. Observed performance:
+During the original 27B OpenCode session over a large bioinformatics project,
+the backend remained usable with long live context and MTP active. Observed
+performance:
 
 | Prompt size | Prompt eval | Decode | Draft acceptance |
 | --- | ---: | ---: | ---: |
@@ -158,8 +159,22 @@ remained usable with long live context and MTP active. Observed performance:
 | ~101k tokens | ~342 tok/s | ~24.3 tok/s | ~0.993 |
 | ~106k tokens | not recorded | ~20-22 tok/s | MTP still active |
 
-The OpenCode session reached more than `110k` live context tokens while still
-using the MTP-enabled local backend.
+The 27B OpenCode session reached more than `110k` live context tokens while
+still using the MTP-enabled local backend.
+
+The later Qwen3.6 35B A3B Q4_K_XL OpenCode checkpoint validation showed the
+checkpoint patch working at substantially larger live context. The raw
+`TEST_CHECK.txt` run used the compatibility `--spec-type mtp` spelling with
+`--spec-draft-n-max 2`; a follow-up live check used the current
+`--spec-type draft-mtp --spec-draft-n-max 7 --spec-draft-p-min 0.75` spelling.
+
+| 35B A3B run | Prompt / reuse | Prompt eval | Decode | Notes |
+| --- | ---: | ---: | ---: | --- |
+| 150k profile | 147212 tokens | 766.44 tok/s | 45.95 tok/s | completed near context limit |
+| 150k follow-up | reused all but 27 tokens | 464.36 ms / 27 tokens | 42 tokens in 1046.41 ms | no full re-prefill |
+| 220k `TEST_CHECK` first large prompt | 78687 tokens | 731.09 tok/s | 60.79 tok/s | draft acceptance 0.92424 |
+| 220k `TEST_CHECK` restore | 197578-token checkpoint restored | 2198.73 ms / 781 tokens | 37.31 tok/s | no re-prefill from zero |
+| 220k post-patch `draft-mtp n=7` live check | max observed live slot 209093 tokens | ~573.7 tok/s aggregate | ~57.4 tok/s aggregate | no crash observed |
 
 ## Additional Synthetic Context Stress Test
 

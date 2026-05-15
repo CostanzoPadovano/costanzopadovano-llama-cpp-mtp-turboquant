@@ -22,6 +22,13 @@ Model:
 - `Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf`
 - MTP enabled with `--spec-type mtp --spec-draft-n-max 2`
 
+This is the exact Unsloth Qwen3.6 35B A3B Q4_K_XL MTP GGUF shown in the raw
+`TEST_CHECK.txt` log:
+
+```text
+C:\Users\costa\.lmstudio\models\unsloth\Qwen3.6-35B-A3B-MTP-GGUF\Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf
+```
+
 Primary OpenCode profile:
 
 ```text

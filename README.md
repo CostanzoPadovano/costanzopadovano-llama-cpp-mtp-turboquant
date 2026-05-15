@@ -1,7 +1,7 @@
-# Experimental Windows/CUDA Blackwell Result: Qwen3.6 27B MTP + TurboQuant
+# Experimental Windows/CUDA Blackwell Results: Qwen3.6 MTP + TurboQuant
 
-This README documents a local experimental result for running Qwen3.6 27B MTP
-GGUF with llama.cpp MTP/speculative decoding and TurboQuant KV-cache support.
+This README documents local experimental results for running Qwen3.6 MTP GGUF
+models with llama.cpp MTP/speculative decoding and TurboQuant KV-cache support.
 The result is promising, but it is not an upstream-ready compatibility claim.
 
 ## What This Branch Is
@@ -19,9 +19,18 @@ OpenAI-compatible backend.
 ## 2026-05-15 Qwen3.6 35B A3B OpenCode Checkpoint Update
 
 This branch also contains a local Qwen3.6 35B A3B MTP experiment focused on
-OpenCode prompt reuse. The fork adds configurable slot checkpoint aliases,
-LCP-aware checkpoint restore, non-FIFO checkpoint eviction, and an MTP guard for
-the global prompt cache path that crashed during testing.
+OpenCode prompt reuse. The model used for that run was the Unsloth GGUF:
+
+```text
+unsloth/Qwen3.6-35B-A3B-MTP-GGUF
+Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf
+```
+
+This is the same model path recorded in `TEST_CHECK.txt`.
+
+The fork adds configurable slot checkpoint aliases, LCP-aware checkpoint
+restore, non-FIFO checkpoint eviction, and an MTP guard for the global prompt
+cache path that crashed during testing.
 
 The most useful daily profile kept `ctx=150000`, `checkpoint_interval=2048`,
 `checkpoint_max=96`, `cache_ram=0`, and `reasoning_budget=2048`. A later

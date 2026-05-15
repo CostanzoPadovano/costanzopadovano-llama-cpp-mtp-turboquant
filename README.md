@@ -16,6 +16,21 @@ It was created as a local test branch for Qwen3.6 27B MTP GGUF inference on
 Windows/CUDA Blackwell hardware, with OpenCode using `llama-server` as a local
 OpenAI-compatible backend.
 
+## 2026-05-15 Qwen3.6 35B A3B OpenCode Checkpoint Update
+
+This branch also contains a local Qwen3.6 35B A3B MTP experiment focused on
+OpenCode prompt reuse. The fork adds configurable slot checkpoint aliases,
+LCP-aware checkpoint restore, non-FIFO checkpoint eviction, and an MTP guard for
+the global prompt cache path that crashed during testing.
+
+The most useful daily profile kept `ctx=150000`, `checkpoint_interval=2048`,
+`checkpoint_max=96`, `cache_ram=0`, and `reasoning_budget=2048`. A later
+experimental run reached `ctx=220000` and restored checkpoints near 199k prompt
+tokens without re-prefilling from zero.
+
+Detailed notes and timings are in
+[`docs/development/qwen36-35b-mtp-opencode-checkpoints.md`](docs/development/qwen36-35b-mtp-opencode-checkpoints.md).
+
 ## Tested Hardware
 
 Tested by `CostanzoPadovano` on:

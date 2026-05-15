@@ -27,6 +27,7 @@
 #include <cinttypes>
 #include <climits>
 #include <cstdarg>
+#include <cstdlib>
 #include <fstream>
 #include <list>
 #include <regex>
@@ -1307,7 +1308,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         }
     ).set_env("LLAMA_ARG_SWA_FULL"));
     add_opt(common_arg(
-        {"-ctxcp", "--ctx-checkpoints", "--swa-checkpoints"}, "N",
+        {"-ctxcp", "--ctx-checkpoints", "--swa-checkpoints", "--checkpoint-max", "--slot-checkpoint-max"}, "N",
         string_format("max number of context checkpoints to create per slot (default: %d)"
             "[(more info)](https://github.com/ggml-org/llama.cpp/pull/15293)", params.n_ctx_checkpoints),
         [](common_params & params, int value) {
@@ -1315,7 +1316,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         }
     ).set_env("LLAMA_ARG_CTX_CHECKPOINTS").set_examples({LLAMA_EXAMPLE_SERVER, LLAMA_EXAMPLE_CLI}));
     add_opt(common_arg(
-        {"-cpent", "--checkpoint-every-n-tokens"}, "N",
+        {"-cpent", "--checkpoint-every-n-tokens", "--checkpoint-interval", "--slot-checkpoint-interval"}, "N",
         string_format("create a checkpoint every n tokens during prefill (processing), -1 to disable (default: %d)", params.checkpoint_every_nt),
         [](common_params & params, int value) {
             params.checkpoint_every_nt = value;
@@ -2136,7 +2137,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
     if (ex == LLAMA_EXAMPLE_SERVER) {
         // this is to make sure this option appears in the server-specific section of the help message
         add_opt(common_arg(
-            {"-np", "--parallel"}, "N",
+            {"-np", "--np", "--parallel"}, "N",
             string_format("number of server slots (default: %d, -1 = auto)", params.n_parallel),
             [](common_params & params, int value) {
                 if (value == 0) {
@@ -2147,7 +2148,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         ).set_env("LLAMA_ARG_N_PARALLEL").set_examples({LLAMA_EXAMPLE_SERVER}));
     } else {
         add_opt(common_arg(
-            {"-np", "--parallel"}, "N",
+            {"-np", "--np", "--parallel"}, "N",
             string_format("number of parallel sequences to decode (default: %d)", params.n_parallel),
             [](common_params & params, int value) {
                 params.n_parallel = value;
@@ -3012,6 +3013,18 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
             params.endpoint_slots = value;
         }
     ).set_examples({LLAMA_EXAMPLE_SERVER}).set_env("LLAMA_ARG_ENDPOINT_SLOTS"));
+    add_opt(common_arg(
+        {"--debug-slot"},
+        "enable verbose server slot debug logging",
+        [](common_params & params) {
+            GGML_UNUSED(params);
+#if defined(_WIN32)
+            _putenv_s("LLAMA_SERVER_SLOTS_DEBUG", "1");
+#else
+            setenv("LLAMA_SERVER_SLOTS_DEBUG", "1", 1);
+#endif
+        }
+    ).set_examples({LLAMA_EXAMPLE_SERVER}).set_env("LLAMA_SERVER_SLOTS_DEBUG"));
     add_opt(common_arg(
         {"--slot-save-path"}, "PATH",
         "path to save slot kv cache (default: disabled)",

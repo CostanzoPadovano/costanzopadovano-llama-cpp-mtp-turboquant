@@ -20,7 +20,9 @@ Model:
 
 - `unsloth/Qwen3.6-35B-A3B-MTP-GGUF`
 - `Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf`
-- MTP enabled with `--spec-type mtp --spec-draft-n-max 2`
+- MTP enabled with the current `--spec-type draft-mtp` name; the recorded run
+  used `--spec-type mtp --spec-draft-n-max 2`, which remains accepted as a
+  compatibility alias
 
 This is the exact Unsloth Qwen3.6 35B A3B Q4_K_XL MTP GGUF shown in the raw
 `TEST_CHECK.txt` log:
@@ -323,8 +325,9 @@ Daily stable profile:
 --checkpoint-interval 2048
 --checkpoint-max 96
 --reasoning-budget 2048
---spec-type mtp
---spec-draft-n-max 2
+--spec-type draft-mtp
+--spec-draft-n-max 4
+--spec-draft-p-min 0.75
 ```
 
 Aggressive experiment:

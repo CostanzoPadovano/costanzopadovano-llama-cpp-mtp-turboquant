@@ -108,7 +108,7 @@ If a draft model is combined with a draftless decoding the draftless decoding ha
 ### General Speculative Parameters
 
 ```
---spec-type [none|ngram-cache|ngram-simple|ngram-map-k|ngram-map-k4v|ngram-mod]
+--spec-type [none|draft-mtp|mtp|ngram-cache|ngram-simple|ngram-map-k|ngram-map-k4v|ngram-mod]
                                         type of speculative decoding to use when no draft model is provided
                                         (default: none)
                                         (env: LLAMA_ARG_SPEC_TYPE)
@@ -198,6 +198,8 @@ Specifies a type of speculative decoding without draft model.
 | Type | Description |
 |------|-------------|
 | `none` | No speculative decoding (default) |
+| `draft-mtp` | Use the draft MTP head loaded from the target GGUF |
+| `mtp` | Deprecated alias for `draft-mtp` |
 | `ngram-cache` | Use n-gram cache lookup |
 | `ngram-simple` | Use simple n-gram pattern matching |
 | `ngram-map-k` | Use n-gram pattern matching with n-gram-keys |

@@ -34,6 +34,7 @@ const std::map<std::string, enum common_speculative_type> common_speculative_typ
     {"none",          COMMON_SPECULATIVE_TYPE_NONE},
     {"draft",         COMMON_SPECULATIVE_TYPE_DRAFT},
     {"eagle3",        COMMON_SPECULATIVE_TYPE_EAGLE3},
+    {"draft-mtp",     COMMON_SPECULATIVE_TYPE_MTP},
     {"mtp",           COMMON_SPECULATIVE_TYPE_MTP},
     {"ngram_simple",  COMMON_SPECULATIVE_TYPE_NGRAM_SIMPLE},
     {"ngram_map_k",   COMMON_SPECULATIVE_TYPE_NGRAM_MAP_K},
@@ -623,7 +624,7 @@ struct common_speculative_state_mtp : public common_speculative_state {
         {
             common_params_sampling sparams;
             sparams.no_perf  = false;
-            sparams.top_k    = 1;
+            sparams.top_k    = 10;
             sparams.samplers = { COMMON_SAMPLER_TYPE_TOP_K };
             smpl = common_sampler_init(model_mtp, sparams);
         }
@@ -718,6 +719,23 @@ struct common_speculative_state_mtp : public common_speculative_state {
                 LOG_WRN("%s: missing source tensor at k=%d; stopping chain\n", __func__, k);
                 return;
             }
+            const int64_t n_src_rows = src->ne[1];
+            if (n_src_rows <= 0) {
+                LOG_WRN("%s: empty source tensor at k=%d; stopping chain\n", __func__, k);
+                return;
+            }
+            if (n_src_rows == 1 && src_row > 0) {
+                src_row = 0;
+            } else if (src_row < 0 || src_row >= n_src_rows) {
+                LOG_WRN("%s: source row %d out of range [0, %" PRId64 ") at k=%d; using last row\n",
+                        __func__, src_row, n_src_rows, k);
+                src_row = (int32_t) n_src_rows - 1;
+            }
+            if ((size_t) (src_row + 1) * row_bytes > ggml_nbytes(src)) {
+                LOG_WRN("%s: source tensor too small for row %d at k=%d; stopping chain\n",
+                        __func__, src_row, k);
+                return;
+            }
             ggml_backend_tensor_get(src, batch.embd,
                                     (size_t) src_row * row_bytes, row_bytes);
 
@@ -730,7 +748,21 @@ struct common_speculative_state_mtp : public common_speculative_state {
                 return;
             }
 
-            const llama_token best = common_sampler_sample(smpl, ctx_mtp, 0);
+            common_sampler_sample(smpl, ctx_mtp, 0);
+            const auto * cur_p = common_sampler_get_candidates(smpl, true);
+            if (cur_p == nullptr || cur_p->size == 0) {
+                LOG_WRN("%s: no MTP candidates at k=%d; stopping chain\n", __func__, k);
+                return;
+            }
+
+            const llama_token best = cur_p->data[0].id;
+            const float p = cur_p->data[0].p;
+            if (p < params.draft.p_min) {
+                LOG_DBG("%s: MTP candidate p=%.3f < p_min=%.3f at k=%d; stopping chain\n",
+                        __func__, (double) p, (double) params.draft.p_min, k);
+                break;
+            }
+
             common_sampler_accept(smpl, best, /*accept_grammar=*/ false);
             draft_tokens.push_back(best);
             cond_tok = best;
@@ -1119,7 +1151,7 @@ std::string common_speculative_type_to_str(enum common_speculative_type type) {
         case COMMON_SPECULATIVE_TYPE_NONE:          return "none";
         case COMMON_SPECULATIVE_TYPE_DRAFT:         return "draft";
         case COMMON_SPECULATIVE_TYPE_EAGLE3:        return "eagle3";
-        case COMMON_SPECULATIVE_TYPE_MTP:           return "mtp";
+        case COMMON_SPECULATIVE_TYPE_MTP:           return "draft-mtp";
         case COMMON_SPECULATIVE_TYPE_NGRAM_SIMPLE:  return "ngram_simple";
         case COMMON_SPECULATIVE_TYPE_NGRAM_MAP_K:   return "ngram_map_k";
         case COMMON_SPECULATIVE_TYPE_NGRAM_MAP_K4V: return "ngram_map_k4v";

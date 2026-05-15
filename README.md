@@ -72,7 +72,7 @@ K cache = q8_0
 V cache = turbo3
 tensor split = 1,1
 cache_ram = 0
-MTP = --spec-type mtp --spec-draft-n-max 2
+MTP = --spec-type draft-mtp --spec-draft-n-max 2 --spec-draft-p-min 0.75
 reasoning budget = --reasoning-budget 512
 endpoint = http://127.0.0.1:8038
 OpenCode profile = opencode.27b-qwen36-mtp-turboquant.json
@@ -91,8 +91,9 @@ llama-server.exe ^
   --cache-type-v turbo3 ^
   --tensor-split 1,1 ^
   --cache-ram 0 ^
-  --spec-type mtp ^
+  --spec-type draft-mtp ^
   --spec-draft-n-max 2 ^
+  --spec-draft-p-min 0.75 ^
   --reasoning-budget 512 ^
   --host 0.0.0.0 ^
   --port 8038 ^
@@ -163,7 +164,8 @@ using the MTP-enabled local backend.
 ## Additional Synthetic Context Stress Test
 
 A reduced stress-test profile using `ctx=160000`, `batch=512`, `ubatch=128`,
-`--spec-draft-n-max 2`, and `--cache-ram 0` successfully generated at:
+`--spec-draft-n-max 2`, `--spec-draft-p-min 0.75`, and `--cache-ram 0`
+successfully generated at:
 
 ```text
 48029 prompt tokens
@@ -224,6 +226,7 @@ ctx = 65536 or 131072
 K = q8_0
 V = turbo3
 draft_n = 2
+draft_p_min = 0.75
 cache_ram = 0
 ```
 
@@ -236,6 +239,7 @@ ubatch = 128
 K = q8_0
 V = turbo3
 draft_n = 2
+draft_p_min = 0.75
 cache_ram = 0
 ```
 
